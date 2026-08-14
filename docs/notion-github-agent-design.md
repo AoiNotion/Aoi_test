@@ -256,3 +256,126 @@ Notion 側の変更を検知したら GitHub を操作する:
 - [ ] `Customer Impact` の Account / Segment が DB の独立プロパティか、本文記載のみか。
 - [ ] Internal Owner（Notion ユーザー）↔ GitHub アカウントのマッピング表。
 - [ ] ラベル名の正式値（`priority:*` / `area:*` / `impact:*`）を DB 選択肢に合わせて確定。
+
+---
+
+## 13. 実装: Issue Close → 対応Status = Fixed（GitHub Actions）
+
+「8. GitHub → Notion 同期」の *Issue Closed → 対応Status = Fixed* を、エージェントのトリガーに依存しない **決定的な GitHub Actions ワークフロー**として実装した。
+
+- スクリプト: `scripts/notion-sync-on-close.mjs`（Notion API を直接呼ぶ／コミット済み）
+- テスト: `scripts/notion-sync-on-close.test.mjs`（`node --test`／コミット済み）
+- ワークフロー: `.github/workflows/notion-sync-on-close.yml`（下記 YAML／**要手動追加**、後述）
+
+**挙動**: Issue が Close されると、`GitHub Issue URL` が一致する Product Requests DB の行を検索し、`対応Status` を **Fixed** に更新する（あわせて `GitHub Status = Closed`、`Last Synced At = 実行時刻` も設定）。
+
+**ガード（後退防止）**: 行がすでに `Fixed` / `Ready to Publish` / `Published` / `Closed`（= Fixed 以降）の場合は更新しない。人が Publish 承認済みの行を Close 再送で `Fixed` に巻き戻さないため。これは設計原則「Fixed から先は必ず人の承認を待つ」と整合する。
+
+### 13.1 ワークフロー YAML（`.github/workflows/notion-sync-on-close.yml`）
+
+> ⚠️ このコミットを作成したトークンには GitHub の `workflow` スコープが無いため、ワークフローファイル自体はコミットできなかった。以下を GitHub の "Add file" か `workflow` スコープを持つ環境から `.github/workflows/notion-sync-on-close.yml` として追加すること。
+
+```yaml
+name: Notion sync on issue close
+
+on:
+  issues:
+    types: [closed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notion-sync-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  sync-notion:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Set 対応Status = Fixed in Notion
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: f8b5709430f24ef4a476fd50bf11aed1
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          ISSUE_STATE_REASON: ${{ github.event.issue.state_reason }}
+        run: node scripts/notion-sync-on-close.mjs
+```
+
+### 13.2 有効化手順
+
+1. 上記 YAML を `.github/workflows/notion-sync-on-close.yml` として追加。
+2. リポジトリ Secrets に `NOTION_TOKEN` を登録（対象 DB に**書き込み権限**を持つ Notion インテグレーションのトークン）。
+3. その Notion インテグレーションを Product Requests DB に接続（Connections から追加）。
+4. DB ID はワークフローに埋め込み済み（`f8b5709430f24ef4a476fd50bf11aed1`）。
+
+> **要確認**: Issue を *Not planned*（`state_reason = not_planned`）で Close した場合も現状は `Fixed` にする。「対応せずクローズ」を区別したい場合は、その分岐で `対応Status = Closed` にする実装へ切り替え可能。
+
+---
+
+## 14. 実装: Issue コメント → 対応Status（GitHub Actions）
+
+**Open** な Issue に投稿されたコメント本文に応じて、`GitHub Issue URL` が一致する Product Requests DB の行の `対応Status` を変更する。
+
+| コメント本文 | 対応Status |
+| --- | --- |
+| `Check` | Approved for Dev |
+| `OK` | In Progress |
+
+- スクリプト: `scripts/notion-sync-on-comment.mjs`（コミット済み）
+- テスト: `scripts/notion-sync-on-comment.test.mjs`（`node --test`／コミット済み）
+- ワークフロー: `.github/workflows/notion-sync-on-comment.yml`（下記 YAML／**要手動追加**）
+
+**マッチング仕様**: コメント本文を trim し、大文字小文字を無視して `check` / `ok` に完全一致した場合のみ発火（例: `Check`, `check`, `OK`, ` ok ` は一致、`looks ok` は不一致）。Issue が Open でない場合、または PR コメントの場合は何もしない（Open 判定と PR 除外はワークフローの `if` で、コマンド判定はスクリプトで実施）。認識できるコマンド以外は no-op。
+
+> [!NOTE]
+> ここでは後退防止ガードは設けていない。`Check` / `OK` は人が明示的に打つコマンドであり、かつ「Open な Issue のみ」という条件自体が実質的なガードとして機能するため（完了済みの Issue は通常 Close 済み）。
+
+### 14.1 ワークフロー YAML（`.github/workflows/notion-sync-on-comment.yml`）
+
+> ⚠️ §13 と同様、`workflow` スコープの無いトークンではコミットできないため、下記を手動で追加すること。
+
+```yaml
+name: Notion sync on issue comment
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notion-sync-comment-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  sync-notion:
+    if: ${{ github.event.issue.state == 'open' && !github.event.issue.pull_request }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Move 対応Status based on the comment
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: f8b5709430f24ef4a476fd50bf11aed1
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          ISSUE_STATE: ${{ github.event.issue.state }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: node scripts/notion-sync-on-comment.mjs
+```
+
+### 14.2 有効化手順
+
+§13.2 と同じ（`NOTION_TOKEN` Secret＋DB 接続）。加えて上記 YAML を `.github/workflows/notion-sync-on-comment.yml` として追加する。`issue_comment` トリガーは既定ブランチ上のワークフロー定義で実行されるため、**マージ後に有効化**される点に注意。

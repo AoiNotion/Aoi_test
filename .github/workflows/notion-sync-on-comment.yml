@@ -1,0 +1,32 @@
+name: Notion sync on issue comment
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notion-sync-comment-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  sync-notion:
+    if: ${{ github.event.issue.state == 'open' && !github.event.issue.pull_request }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Move 対応Status based on the comment
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: f8b5709430f24ef4a476fd50bf11aed1
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          ISSUE_STATE: ${{ github.event.issue.state }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: node scripts/notion-sync-on-comment.mjs
