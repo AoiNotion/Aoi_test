@@ -1,0 +1,30 @@
+name: Notion sync on issue close
+
+on:
+  issues:
+    types: [closed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notion-sync-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  sync-notion:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Set 対応Status = Fixed in Notion
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: f8b5709430f24ef4a476fd50bf11aed1
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          ISSUE_STATE_REASON: ${{ github.event.issue.state_reason }}
+        run: node scripts/notion-sync-on-close.mjs
