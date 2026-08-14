@@ -1,9 +1,12 @@
-# GitHub Close → Notion「対応Status = Fixed」自動同期 — 説明ドキュメント
+# GitHub アクション → Notion「対応Status」自動同期 — 説明ドキュメント
 
 > [!NOTE]
-> GitHub の Issue が **Close** されたら、Notion の **Product Requests DB**
-> （`f8b5709430f24ef4a476fd50bf11aed1`）の該当行の **`対応Status` を `Fixed`** に
-> 自動更新します。突合キーは `GitHub Issue URL` です。
+> GitHub 側のアクションに応じて、Notion の **Product Requests DB**
+> （`f8b5709430f24ef4a476fd50bf11aed1`）の該当行の **`対応Status`** を自動更新します。
+> 突合キーは `GitHub Issue URL` です。
+> - Issue **Close** → `Fixed`（+ `GitHub Status = Closed`）
+> - Open な Issue にコメント **`Check`** → `Approved for Dev`
+> - Open な Issue にコメント **`OK`** → `In Progress`
 
 ## 背景
 
@@ -39,13 +42,28 @@ GitHub の「Issue を Close する」操作は、GitHub 側で `issues` イベ�
 そのため、**すでに `Fixed` 以降（Ready to Publish / Published / Closed）まで人が進めている行は、
 Close イベントが再送されても後退させません**。
 
+### コメント駆動の遷移（追加）
+
+さらに、**Open な Issue へのコメント**で早い段階の状態を動かせるようにしました。開発者が
+GitHub のコメントで合図するだけで、Notion 側のトリアージ状態が進みます。
+
+| GitHub コメント | `対応Status` |
+| --- | --- |
+| `Check` | Approved for Dev |
+| `OK` | In Progress |
+
+マッチングはコメント本文を trim・大文字小文字無視で `check` / `ok` に**完全一致**した場合のみ。
+Issue が Open でない場合や PR コメントは無視します。`Check` / `OK` は人が明示的に打つコマンドなので、
+後退防止ガードは設けていません（「Open な Issue のみ」という条件が実質的なガードになります）。
+
 ## コード
 
-変更は 2 ファイル（+ 設計書追記）です。
+変更ファイルです（ワークフロー YAML は権限の都合で設計書内に全文掲載）。
 
-- `scripts/notion-sync-on-close.mjs` — Notion API を直接叩く同期ロジック。
-- `scripts/notion-sync-on-close.test.mjs` — `node --test` の単体テスト。
-- `.github/workflows/notion-sync-on-close.yml` — 起動役のワークフロー（設計書 §13 に全文。権限の都合で手動追加が必要 / 後述）。
+- `scripts/notion-sync-on-close.mjs` / `.test.mjs` — Issue クローズ同期ロジック＋単体テスト。
+- `scripts/notion-sync-on-comment.mjs` / `.test.mjs` — コメント駆動（Check/OK）ロジック＋単体テスト。
+- `.github/workflows/notion-sync-on-close.yml` — クローズ起動役（設計書 §13）。
+- `.github/workflows/notion-sync-on-comment.yml` — コメント起動役（設計書 §14）。
 
 **起動条件**は GitHub の Issue クローズだけです。
 
@@ -83,7 +101,7 @@ properties: {
 
 ## 認証（検証）
 
-`node --test` で 6 ケースが green です。
+`node --test` で 13 ケースが green です（クローズ 6 + コメント 7）。
 
 - 進行中の行（In Review）→ `Fixed` に更新し、`GitHub Status = Closed` と `Last Synced At` も書き込む。
 - `Published` の行 → **更新しない**（後退防止ガード）。
@@ -91,10 +109,12 @@ properties: {
 - クエリが `GitHub Issue URL` 完全一致でフィルタされている。
 - Notion が失敗を返したら明示的にエラーを投げる。
 - `NOTION_TOKEN` / `ISSUE_URL` 未設定を弾く。
+- コメント `Check` → `Approved for Dev`、`OK` → `In Progress`（trim・大小無視）。
+- 認識できないコメントは Notion を叩かない／Open でない Issue は何もしない。
 
 ```
-node --test scripts/notion-sync-on-close.test.mjs
-# tests 6 / pass 6 / fail 0
+node --test scripts/notion-sync-on-close.test.mjs scripts/notion-sync-on-comment.test.mjs
+# tests 13 / pass 13 / fail 0
 ```
 
 **手動 QA 手順**
@@ -186,4 +206,15 @@ node --test scripts/notion-sync-on-close.test.mjs
 - D. `GitHub Issue URL` プロパティを削除する
 
 **解説**: 加えて（今回の権限制約により）ワークフロー YAML 自体を `workflow` スコープを持つ経路で追加する必要があります。A は誤り（Secret とファイル追加が前提）。
+</details>
+
+<details>
+<summary>Q6. Open な Issue に <code>looks ok to me</code> というコメントが付いたら？</summary>
+
+- A. `In Progress` に変更される
+- B. `Approved for Dev` に変更される
+- **C. 何も起きない（コマンド完全一致ではない）** ✅
+- D. エラーになる
+
+**解説**: マッチングは trim・大小無視の**完全一致**で `check` / `ok` のみ。`looks ok to me` は一致しないため no-op（Notion のクエリすら発行しません）。誤爆を避けるための仕様です。
 </details>
