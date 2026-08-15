@@ -1,17 +1,9 @@
----
-name: Salesforce Support Request
-about: Notion 上でトリアージ済みのサポートリクエストを起票するための標準テンプレート（Notion カスタムエージェントが本文をこの形式で生成します）
-title: ""
-labels: ""
-assignees: ""
----
-
 <!--
 この Issue は Notion のサポートリクエスト DB から自動起票されます。
+起票トリガー: Approval が Approved になったとき（Pending → Approved）。
 起票条件（すべて満たす）:
-  - 対応Status = Approved for Dev
   - Approval   = Approved
-  - GitHub Issue URL が空
+  - GitHub Issue URL が空（＝二重起票防止の突合キー）
   - Request Type ∈ { Bug, Feature Request, Improvement }
 タイトルには Notion の `Request` をそのまま使用します。
 -->
