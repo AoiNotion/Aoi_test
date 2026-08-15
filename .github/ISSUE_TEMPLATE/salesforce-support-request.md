@@ -8,9 +8,9 @@ assignees: ""
 
 <!--
 この Issue は Notion のサポートリクエスト DB から自動起票されます。
-起票トリガー: Approval が Approved になったとき（Pending → Approved）。
+起票トリガー: 対応Status が Approved for Dev になったとき（Intake → Approved for Dev）。
 起票条件（すべて満たす）:
-  - Approval   = Approved
+  - 対応Status = Approved for Dev（Intake → Approved for Dev の遷移）
   - GitHub Issue URL が空（＝二重起票防止の突合キー）
   - Request Type ∈ { Bug, Feature Request, Improvement }
 タイトルには Notion の `Request` をそのまま使用します。

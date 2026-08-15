@@ -1,6 +1,6 @@
 # ラベル体系（Notion ↔ GitHub 連携）
 
-Notion「📥 Product Requests DB」から Issue を起票する際、以下のラベルを付与します。ラベル名の正式値は実データで確定済み（2026-08-15）。
+Notion「📥 デモ_Notion Request Hub」から Issue を起票する際、以下のラベルを付与します。ラベル名の正式値は実データで確定済み（2026-08-15）。
 
 > [!NOTE]
 > **GitHub 側**: `POST /repos/.../issues` に存在しないラベル名を渡すと、そのラベルはデフォルト色で**自動作成**される（本連携で `priority:critical` / `impact:critical` の自動作成を確認済み）。事前作成は必須ではないが、色や説明を整えたい場合は先に作成しておくとよい。

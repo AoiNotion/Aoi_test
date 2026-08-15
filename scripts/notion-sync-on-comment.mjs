@@ -28,7 +28,7 @@ export async function run({
   logger = console,
 } = {}) {
   const token = env.NOTION_TOKEN;
-  const databaseId = env.NOTION_DATABASE_ID || "f8b5709430f24ef4a476fd50bf11aed1";
+  const databaseId = env.NOTION_DATABASE_ID || "3cdb35e6e67f82de8ce181dc217f10f8";
   const issueUrl = env.ISSUE_URL;
   const issueState = env.ISSUE_STATE; // "open" | "closed" | undefined
   const commentBody = env.COMMENT_BODY ?? "";
