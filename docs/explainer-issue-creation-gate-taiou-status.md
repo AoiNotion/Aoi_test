@@ -10,7 +10,7 @@
 
 このリポジトリは、顧客サポートリクエストを **Salesforce → Notion → GitHub** の順に流す
 Notion カスタムエージェントの設計・受け皿です（全体像は `docs/notion-github-agent-design.md`）。
-中心にあるのが Notion の **📥 Product Requests DB**（`f8b5709430f24ef4a476fd50bf11aed1`）で、
+中心にあるのが Notion の **📥 デモ_Notion Request Hub**（`3cdb35e6e67f82de8ce181dc217f10f8`）で、
 1 行が 1 件のリクエストを表します。Notion 行と GitHub Issue は、Notion 側の
 **`GitHub Issue URL`** プロパティで 1:1 に対応づけられます（これが唯一の突合キー＝二重起票防止のキー）。
 
@@ -95,13 +95,29 @@ In GitHub / In Progress / In Review / Fixed / …
 > `Approval` プロパティ自体は DB から消していません。人手トリアージの可否として引き続き使えます。
 > 今回は「**起票判定の起点にどのプロパティを使うか**」を `対応Status` に一本化しただけです。
 
+**3. 対象 DB を新 DB へ一本化** — 本エージェント（`デモ_Notion Request Hub エージェント`）に接続された
+実 DB は **`📥 デモ_Notion Request Hub`**（`3cdb35e6e67f82de8ce181dc217f10f8` / データソース
+`709b35e6-e67f-83a3-822d-877d16f8c13b`）でした。設計書・スクリプト・GitHub→Notion 同期ワークフローが
+参照していた旧 DB `f8b5709430f24ef4a476fd50bf11aed1` を、この新 DB に置換。旧 DB は参照しません。
+
+- `scripts/notion-sync-on-{close,comment,comment-intake,open}.mjs`: `NOTION_DATABASE_ID` の既定値を新 DB に。
+- `.github/workflows/notion-sync-on-{close,comment}.yml`: `env.NOTION_DATABASE_ID` を新 DB に。
+- 設計書・`labels.md`・本ドキュメント: DB ID / データソース ID / 表示名を新 DB に統一。
+
+> [!IMPORTANT]
+> この置換をしないと、GitHub 側の進捗（Issue Close / コメント）が**旧 DB に書き込まれ**、
+> 実際に運用している新 DB に反映されません。突合キー（`GitHub Issue URL`）やスクリプトのロジックは不変です。
+
 ## 認証（どう正しさを確かめたか）
 
 - **既存テストの緑維持**: `node --test scripts/*.test.mjs` を実行し、**25 件すべて pass**。
-  今回はスクリプトを変更していないため回帰は起きませんが、受け皿全体が壊れていないことの確認として実行しました。
-- **静的レビュー**: `grep` でリポジトリ全体を走査し、`Approval` 起点のゲート記述が残っていないことを確認。
+  スクリプトのロジックは変更しておらず（`NOTION_DATABASE_ID` の既定値のみ更新／テストは env で明示指定）、回帰は起きません。
+- **静的レビュー**: `grep` でリポジトリ全体を走査し、`Approval` 起点のゲート記述および旧 DB ID が残っていないことを確認。
   残った `Approval` の言及は、いずれも「人手トリアージ用の別プロパティである／旧ゲートの履歴である」ことを
   明示する文脈のみ。
+- **ライブ照会（新 DB）**: 接続された新 DB を実際に SQL 照会し、起票ゲート（`対応Status = Approved for Dev` /
+  URL 空 / 対象 Request Type）に合致する行が現時点で 0 件（候補 3 行は `Intake`、1 行は起票済み #13）であることを確認。
+  人の承認待ちで正しく起票しない状態であることを実データで裏取りした。
 
 > [!WARNING]
 > **ライブ起票の実地確認はこの PR では未実施**です。本エージェント

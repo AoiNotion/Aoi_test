@@ -35,8 +35,8 @@ flowchart TD
 
 ## 3. Tools and access（接続とアクセス設定）
 
-> ✅ **対象 DB (`📥 Product Requests DB` / `f8b5709430f24ef4a476fd50bf11aed1`) への読み書きアクセスは付与済み。**
-> データソース: `collection://f633e1d9-ce9c-47fa-b009-15237d2afd4c`。実プロパティ名・選択肢で本設計を確定済み（§15 参照）。
+> ✅ **対象 DB (`📥 デモ_Notion Request Hub` / `3cdb35e6e67f82de8ce181dc217f10f8`) への読み書きアクセスは付与済み（本エージェント `デモ_Notion Request Hub エージェント` の integration に付与、2026-08-15 確認）。**
+> データソース: `collection://709b35e6-e67f-83a3-822d-877d16f8c13b`。実プロパティ名・選択肢で本設計を確定済み（§15 参照）。旧 DB `f8b5709430f24ef4a476fd50bf11aed1` は本 DB に一本化し、参照しない。
 
 必要な接続:
 
@@ -160,7 +160,7 @@ Ready to Publish / Published
 あなたは Salesforce 由来の顧客サポートリクエストを Notion でトリアージした後に GitHub と双方向連携するエージェントです。Salesforce から来たものを自動で全部 GitHub に流さず、Notion で人が承認してから起票することで開発チームのノイズを防ぎます。
 
 # 対象リソース
-- Notion DB: サポートリクエスト DB (f8b5709430f24ef4a476fd50bf11aed1)
+- Notion DB: デモ_Notion Request Hub (3cdb35e6e67f82de8ce181dc217f10f8)
 - GitHub リポジトリ: AoiNotion/Aoi_test
 - 突合キー: Notion の「GitHub Issue URL」プロパティ（これで Notion 行と GitHub Issue を対応付ける）
 
@@ -300,7 +300,7 @@ jobs:
       - name: Set 対応Status = Fixed in Notion
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
-          NOTION_DATABASE_ID: f8b5709430f24ef4a476fd50bf11aed1
+          NOTION_DATABASE_ID: 3cdb35e6e67f82de8ce181dc217f10f8
           ISSUE_URL: ${{ github.event.issue.html_url }}
           ISSUE_STATE_REASON: ${{ github.event.issue.state_reason }}
         run: node scripts/notion-sync-on-close.mjs
@@ -311,7 +311,7 @@ jobs:
 1. 上記 YAML を `.github/workflows/notion-sync-on-close.yml` として追加。
 2. リポジトリ Secrets に `NOTION_TOKEN` を登録（対象 DB に**書き込み権限**を持つ Notion インテグレーションのトークン）。
 3. その Notion インテグレーションを Product Requests DB に接続（Connections から追加）。
-4. DB ID はワークフローに埋め込み済み（`f8b5709430f24ef4a476fd50bf11aed1`）。
+4. DB ID はワークフローに埋め込み済み（`3cdb35e6e67f82de8ce181dc217f10f8`）。
 
 > **要確認**: Issue を *Not planned*（`state_reason = not_planned`）で Close した場合も現状は `Fixed` にする。「対応せずクローズ」を区別したい場合は、その分岐で `対応Status = Closed` にする実装へ切り替え可能。
 
@@ -367,7 +367,7 @@ jobs:
       - name: Move 対応Status based on the comment
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
-          NOTION_DATABASE_ID: f8b5709430f24ef4a476fd50bf11aed1
+          NOTION_DATABASE_ID: 3cdb35e6e67f82de8ce181dc217f10f8
           ISSUE_URL: ${{ github.event.issue.html_url }}
           ISSUE_STATE: ${{ github.event.issue.state }}
           COMMENT_BODY: ${{ github.event.comment.body }}
@@ -387,9 +387,9 @@ jobs:
 
 DB アクセス付与後、実データで起票トリガーを実行し、以下を確認した。
 
-### 15.1 確定したスキーマ（📥 Product Requests DB）
+### 15.1 確定したスキーマ（📥 デモ_Notion Request Hub）
 
-- データソース: `collection://f633e1d9-ce9c-47fa-b009-15237d2afd4c`
+- データソース: `collection://709b35e6-e67f-83a3-822d-877d16f8c13b`
 - 起票判定に使うプロパティ: `対応Status`（status: Intake / Approved for Dev / In GitHub / In Progress / In Review / Fixed / Ready to Publish / Published ほか）、`GitHub Issue URL`（url）、`Request Type`（select: Bug / Feature Request / Question / Incident / Improvement）
   - 起票ゲートは `対応Status` = **Approved for Dev**（Intake → Approved for Dev への遷移）。`Approval`（select: Pending / Approved / Rejected）は人手トリアージ用の別プロパティで、起票ゲートには使わない。
 - ラベル元プロパティ: `Priority`（P0–P3）、`Customer Impact`（Low / Medium / High / Critical）、`Request Type`
@@ -493,7 +493,7 @@ jobs:
       - name: Move 対応Status Intake -> In GitHub in Notion
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
-          NOTION_DATABASE_ID: f8b5709430f24ef4a476fd50bf11aed1
+          NOTION_DATABASE_ID: 3cdb35e6e67f82de8ce181dc217f10f8
           ISSUE_URL: ${{ github.event.issue.html_url }}
         run: node scripts/notion-sync-on-open.mjs
 ```
@@ -528,7 +528,7 @@ jobs:
       - name: Advance In GitHub -> Fixed and set GitHub Status = Closed
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
-          NOTION_DATABASE_ID: f8b5709430f24ef4a476fd50bf11aed1
+          NOTION_DATABASE_ID: 3cdb35e6e67f82de8ce181dc217f10f8
           ISSUE_URL: ${{ github.event.issue.html_url }}
         run: node scripts/notion-sync-on-comment-intake.mjs
 ```

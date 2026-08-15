@@ -2,7 +2,7 @@
 
 > [!NOTE]
 > GitHub 側のアクションに応じて、Notion の **Product Requests DB**
-> （`f8b5709430f24ef4a476fd50bf11aed1`）の該当行の **`対応Status`** を自動更新します。
+> （`3cdb35e6e67f82de8ce181dc217f10f8`）の該当行の **`対応Status`** を自動更新します。
 > 突合キーは `GitHub Issue URL` です。
 > - Issue **Close** → `Fixed`（+ `GitHub Status = Closed`）
 > - Open な Issue にコメント **`Check`** → `Approved for Dev`
