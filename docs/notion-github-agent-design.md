@@ -419,3 +419,40 @@ DB アクセス付与後、実データで起票トリガーを実行し、以�
 - **GitHub のラベル自動作成**: 存在しなかった `priority:critical` / `impact:critical` は Issue 作成時にデフォルト色で自動作成された（事前作成は不要）。
 - **Notion multi_select は自動作成しない**: `GitHub Labels` に新しい値を書き戻すには、先にデータソースへ選択肢を追加する必要がある（本実行で `priority:critical` / `impact:critical` を追加）。
 - **Assignee**: Internal Owner ↔ GitHub ユーザーのマッピングが未確定のため Assignee は付与していない（既存 #6 / #8 / #10 と同じ運用）。
+
+---
+
+## 16. 追加ルール: GitHub → Notion のステータス自動遷移（2 系統・既存ルール不変）
+
+既存のトリガー／ルール（§13 Issue Close → Fixed、§14 コメント `Check`/`OK`、§5 の起票ゲート）には**一切変更を加えず**、独立したワークフロー・スクリプトとして 2 つの決定的ルールを追加した。突合キーはいずれも `GitHub Issue URL`。
+
+### 16.1 ルールA: Issue 起票 → 対応Status Intake → In GitHub
+
+- 契機: GitHub Issue が **opened**。
+- 動作: `GitHub Issue URL` が一致する行の `対応Status` が **Intake のときだけ** `In GitHub` にする（Intake 以外は変更しない＝冪等・後退防止）。
+- スクリプト: `scripts/notion-sync-on-open.mjs`（テスト `scripts/notion-sync-on-open.test.mjs`）
+- ワークフロー: `.github/workflows/notion-sync-on-open.yml`（`on: issues: [opened]`）
+
+### 16.2 ルールB: In GitHub の Issue にコメント → 対応Status In GitHub → Fixed ＋ GitHub Status Open → Closed
+
+- 契機: GitHub Issue に **コメントが追加**（PR コメントは除外）。
+- 動作: `GitHub Issue URL` が一致する行の `対応Status` が **In GitHub のときだけ**、`対応Status` を `Fixed` に、`GitHub Status`（Notion プロパティ）を `Closed` にする。In GitHub 以外は変更しない（後退防止）。
+- スクリプト: `scripts/notion-sync-on-comment-intake.mjs`（テスト `scripts/notion-sync-on-comment-intake.test.mjs`）
+- ワークフロー: `.github/workflows/notion-sync-on-comment-intake.yml`（`on: issue_comment: [created]`、既存とは別の concurrency group）
+
+> [!NOTE]
+> ルールB は既存の §14（コメント `Check`/`OK`）とは**別ファイル・別 concurrency group**で動作する。両者とも `issue_comment` で起動するため、`対応Status = In GitHub` の Issue に `Check`/`OK` を書くと、§14（Approved for Dev / In Progress へ）と ルールB（Fixed へ）が同時に走り、書き込みが競合しうる。コメント起点の遷移を 1 本化したい場合は要調整（本 PR では「既存ルール不変」の指示に従い共存させている）。
+
+### 16.3 想定フロー
+
+```
+Approval = Approved（§5 既存）
+  → GitHub Issue 作成
+  → ルールA: 対応Status Intake → In GitHub
+  → （人が Issue にコメント）
+  → ルールB: 対応Status In GitHub → Fixed ／ GitHub Status Open → Closed
+```
+
+### 16.4 有効化
+
+§13.2 と同じ（リポジトリ Secrets の `NOTION_TOKEN` ＋対象 DB への接続）。上記 2 つのワークフローは既定ブランチへマージ後に有効化される。`GitHub Status = Closed` は Notion プロパティのみを更新し、GitHub の Issue 自体は close しない点に注意（実 close の同期は §13 の対象）。
