@@ -35,9 +35,8 @@ flowchart TD
 
 ## 3. Tools and access（接続とアクセス設定）
 
-> ⚠️ **現在このエージェントは対象 DB (`f8b5709430f24ef4a476fd50bf11aed1`) にアクセスできません（404）。**
-> エージェント設定の **Tools and access** で当該 DB への読み取り＋書き込みアクセスを付与してください。
-> 付与後、実際のプロパティ名・選択肢に合わせて本設計を最終調整します。
+> ✅ **対象 DB (`📥 Product Requests DB` / `f8b5709430f24ef4a476fd50bf11aed1`) への読み書きアクセスは付与済み。**
+> データソース: `collection://f633e1d9-ce9c-47fa-b009-15237d2afd4c`。実プロパティ名・選択肢で本設計を確定済み（§15 参照）。
 
 必要な接続:
 
@@ -69,14 +68,14 @@ flowchart TD
 | Notion | GitHub |
 | --- | --- |
 | Request | Issue title |
-| Engineering Brief | Issue body |
+| Engineering Brief | Issue body（独立プロパティは無く、実体はページ本文。空のことが多い） |
 | Priority | Label (`priority:*`) |
-| Product Area | Label (`area:*`) |
+| Product Area | Body に記載（自由記述のため Area ラベルは付与しない） |
 | Request Type | Label (`type:*`) |
 | Customer Impact | Label (`impact:*`) |
-| Internal Owner | Mention / Reference (Assignee) |
+| Internal Owner | ユーザーマッピング未確定のため現状 Issue へは未反映（Assignee は GitHub→Notion 逆同期で Engineering Owner に反映） |
 | Salesforce Case ID | Body に記載 |
-| Notion URL | Body に記載 |
+| Notion URL | Body に記載（ページ URL を使用） |
 
 ---
 
@@ -249,11 +248,11 @@ Notion 側の変更を検知したら GitHub を操作する:
 
 ## 12. 未確定・確認事項
 
-- [ ] 対象 DB へのアクセス付与（現在 404）。付与後にプロパティ名・選択肢を実データで確定。
+- [x] 対象 DB へのアクセス付与（付与済み 2026-08-15）。プロパティ名・選択肢を実データで確定（§15）。
 - [ ] GitHub 進捗取り込みは Webhook かスケジュールポーリングか（推奨: Webhook）。
-- [ ] `Customer Impact` の Account / Segment が DB の独立プロパティか、本文記載のみか。
-- [ ] Internal Owner（Notion ユーザー）↔ GitHub アカウントのマッピング表。
-- [ ] ラベル名の正式値（`priority:*` / `area:*` / `impact:*`）を DB 選択肢に合わせて確定。
+- [x] `Customer Impact` は独立プロパティ（Low / Medium / High / Critical）。`Account` も独立プロパティ。`Segment` プロパティは DB に存在しない（Issue 本文の Segment 行は任意・空可）。
+- [ ] Internal Owner（Notion `person`）↔ GitHub アカウントのマッピング表（未確定のため現状 Issue へは未反映）。
+- [x] ラベル名の正式値を確定（`type:*` / `priority:*` / `impact:*`）。`Product Area` は自由記述のため Area ラベルは付与しない。
 
 ---
 
@@ -377,3 +376,154 @@ jobs:
 ### 14.2 有効化手順
 
 §13.2 と同じ（`NOTION_TOKEN` Secret＋DB 接続）。加えて上記 YAML を `.github/workflows/notion-sync-on-comment.yml` として追加する。`issue_comment` トリガーは既定ブランチ上のワークフロー定義で実行されるため、**マージ後に有効化**される点に注意。
+
+---
+
+## 15. 実運用メモ（2026-08-15 ライブ実行）
+
+DB アクセス付与後、実データで起票トリガーを実行し、以下を確認した。
+
+### 15.1 確定したスキーマ（📥 Product Requests DB）
+
+- データソース: `collection://f633e1d9-ce9c-47fa-b009-15237d2afd4c`
+- 起票判定に使うプロパティ: `Approval`（select: Pending / Approved / Rejected）、`GitHub Issue URL`（url）、`Request Type`（select: Bug / Feature Request / Question / Incident / Improvement）
+- ラベル元プロパティ: `Priority`（P0–P3）、`Customer Impact`（Low / Medium / High / Critical）、`Request Type`
+- `Product Area` は自由記述テキスト（Area ラベルは付与しない）
+- `Engineering Brief` / `Acceptance Criteria` / `Segment` / `Notion URL` という独立プロパティは**存在しない**。Notion URL はページ URL を使用。Engineering Brief 相当はページ本文（現状は空のことが多い）。書き戻し先は `GitHub Issue URL` / `GitHub Status` / `対応Status` / `GitHub Labels` / `Last Synced At`。
+
+### 15.2 ラベルマッピング（確定）
+
+| Notion | GitHub ラベル |
+| --- | --- |
+| Request Type = Bug / Feature Request / Improvement | `type:bug` / `type:feature` / `type:improvement` |
+| Priority = P0 / P1 / P2 / P3 | `priority:critical` / `priority:high` / `priority:medium` / `priority:low` |
+| Customer Impact = Low / Medium / High / Critical | `impact:low` / `impact:medium` / `impact:high` / `impact:critical` |
+
+### 15.3 実行結果（既存の承認済み行を起票）
+
+起票条件を満たした 3 行を起票し、Notion に書き戻した（`GitHub Status = Open` / `対応Status = In GitHub` / `GitHub Labels` / `Last Synced At`）。
+
+| Issue | Request | Priority / Impact | Labels |
+| --- | --- | --- | --- |
+| #12 | 承認フローの差し戻しコメントが保存されない | P2 / Medium | `type:bug`, `priority:medium`, `impact:medium` |
+| #13 | 投資家検索の挙動がおかしい | P1 / High | `type:bug`, `priority:high`, `impact:high` |
+| #14 | Slack通知が特定チャンネルだけ遅延する | P0 / Critical | `type:bug`, `priority:critical`, `impact:critical` |
+
+スキップ（設計どおり）:
+- `GitHub Issue URL` が既に存在（#6 / #8 / #10）→ 冪等性によりスキップ。
+- `Approval = Pending` の行 → 未承認のためスキップ。
+- `Request Type = Incident`（SCIM 同期の行）→ 対象タイプ外のためスキップ。
+
+### 15.4 挙動の確認事項
+
+- **GitHub のラベル自動作成**: 存在しなかった `priority:critical` / `impact:critical` は Issue 作成時にデフォルト色で自動作成された（事前作成は不要）。
+- **Notion multi_select は自動作成しない**: `GitHub Labels` に新しい値を書き戻すには、先にデータソースへ選択肢を追加する必要がある（本実行で `priority:critical` / `impact:critical` を追加）。
+- **Assignee**: Internal Owner ↔ GitHub ユーザーのマッピングが未確定のため Assignee は付与していない（既存 #6 / #8 / #10 と同じ運用）。
+
+---
+
+## 16. 追加ルール: GitHub → Notion のステータス自動遷移（2 系統・既存ルール不変）
+
+既存のトリガー／ルール（§13 Issue Close → Fixed、§14 コメント `Check`/`OK`、§5 の起票ゲート）には**一切変更を加えず**、独立したワークフロー・スクリプトとして 2 つの決定的ルールを追加した。突合キーはいずれも `GitHub Issue URL`。
+
+### 16.1 ルールA: Issue 起票 → 対応Status Intake → In GitHub
+
+- 契機: GitHub Issue が **opened**。
+- 動作: `GitHub Issue URL` が一致する行の `対応Status` が **Intake のときだけ** `In GitHub` にする（Intake 以外は変更しない＝冪等・後退防止）。
+- スクリプト: `scripts/notion-sync-on-open.mjs`（テスト `scripts/notion-sync-on-open.test.mjs`）
+- ワークフロー: `.github/workflows/notion-sync-on-open.yml`（`on: issues: [opened]`）
+
+### 16.2 ルールB: In GitHub の Issue にコメント → 対応Status In GitHub → Fixed ＋ GitHub Status Open → Closed
+
+- 契機: GitHub Issue に **コメントが追加**（PR コメントは除外）。
+- 動作: `GitHub Issue URL` が一致する行の `対応Status` が **In GitHub のときだけ**、`対応Status` を `Fixed` に、`GitHub Status`（Notion プロパティ）を `Closed` にする。In GitHub 以外は変更しない（後退防止）。
+- スクリプト: `scripts/notion-sync-on-comment-intake.mjs`（テスト `scripts/notion-sync-on-comment-intake.test.mjs`）
+- ワークフロー: `.github/workflows/notion-sync-on-comment-intake.yml`（`on: issue_comment: [created]`、既存とは別の concurrency group）
+
+> [!NOTE]
+> ルールB は既存の §14（コメント `Check`/`OK`）とは**別ファイル・別 concurrency group**で動作する。両者とも `issue_comment` で起動するため、`対応Status = In GitHub` の Issue に `Check`/`OK` を書くと、§14（Approved for Dev / In Progress へ）と ルールB（Fixed へ）が同時に走り、書き込みが競合しうる。コメント起点の遷移を 1 本化したい場合は要調整（本 PR では「既存ルール不変」の指示に従い共存させている）。
+
+### 16.3 想定フロー
+
+```
+Approval = Approved（§5 既存）
+  → GitHub Issue 作成
+  → ルールA: 対応Status Intake → In GitHub
+  → （人が Issue にコメント）
+  → ルールB: 対応Status In GitHub → Fixed ／ GitHub Status Open → Closed
+```
+
+### 16.4 有効化
+
+§13.2 と同じ（リポジトリ Secrets の `NOTION_TOKEN` ＋対象 DB への接続）。`GitHub Status = Closed` は Notion プロパティのみを更新し、GitHub の Issue 自体は close しない点に注意（実 close の同期は §13 の対象）。
+
+> ⚠️ §13.1 / §14.1 と同様、本 PR を作成したトークンには GitHub の `workflow` スコープが無いため、ワークフローファイル自体はコミットできなかった。以下 2 つを GitHub の "Add file" か `workflow` スコープを持つ環境から追加すること。スクリプト・テスト・本ドキュメントはコミット済み。追加後、既定ブランチへマージすると有効化される。
+
+`.github/workflows/notion-sync-on-open.yml`:
+
+```yaml
+name: Notion sync on issue open
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notion-sync-open-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  sync-notion:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Move 対応Status Intake -> In GitHub in Notion
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: f8b5709430f24ef4a476fd50bf11aed1
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+        run: node scripts/notion-sync-on-open.mjs
+```
+
+`.github/workflows/notion-sync-on-comment-intake.yml`:
+
+```yaml
+name: Notion sync on issue comment (In GitHub -> Fixed)
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notion-sync-comment-intake-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  sync-notion:
+    if: ${{ !github.event.issue.pull_request }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Advance In GitHub -> Fixed and set GitHub Status = Closed
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: f8b5709430f24ef4a476fd50bf11aed1
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+        run: node scripts/notion-sync-on-comment-intake.mjs
+```
