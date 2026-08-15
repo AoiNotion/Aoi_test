@@ -455,4 +455,75 @@ Approval = Approved（§5 既存）
 
 ### 16.4 有効化
 
-§13.2 と同じ（リポジトリ Secrets の `NOTION_TOKEN` ＋対象 DB への接続）。上記 2 つのワークフローは既定ブランチへマージ後に有効化される。`GitHub Status = Closed` は Notion プロパティのみを更新し、GitHub の Issue 自体は close しない点に注意（実 close の同期は §13 の対象）。
+§13.2 と同じ（リポジトリ Secrets の `NOTION_TOKEN` ＋対象 DB への接続）。`GitHub Status = Closed` は Notion プロパティのみを更新し、GitHub の Issue 自体は close しない点に注意（実 close の同期は §13 の対象）。
+
+> ⚠️ §13.1 / §14.1 と同様、本 PR を作成したトークンには GitHub の `workflow` スコープが無いため、ワークフローファイル自体はコミットできなかった。以下 2 つを GitHub の "Add file" か `workflow` スコープを持つ環境から追加すること。スクリプト・テスト・本ドキュメントはコミット済み。追加後、既定ブランチへマージすると有効化される。
+
+`.github/workflows/notion-sync-on-open.yml`:
+
+```yaml
+name: Notion sync on issue open
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notion-sync-open-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  sync-notion:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Move 対応Status Intake -> In GitHub in Notion
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: f8b5709430f24ef4a476fd50bf11aed1
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+        run: node scripts/notion-sync-on-open.mjs
+```
+
+`.github/workflows/notion-sync-on-comment-intake.yml`:
+
+```yaml
+name: Notion sync on issue comment (In GitHub -> Fixed)
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notion-sync-comment-intake-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  sync-notion:
+    if: ${{ !github.event.issue.pull_request }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Advance In GitHub -> Fixed and set GitHub Status = Closed
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: f8b5709430f24ef4a476fd50bf11aed1
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+        run: node scripts/notion-sync-on-comment-intake.mjs
+```
