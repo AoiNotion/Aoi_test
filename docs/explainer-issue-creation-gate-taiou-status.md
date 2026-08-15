@@ -101,12 +101,19 @@ In GitHub / In Progress / In Review / Fixed / …
 参照していた旧 DB `f8b5709430f24ef4a476fd50bf11aed1` を、この新 DB に置換。旧 DB は参照しません。
 
 - `scripts/notion-sync-on-{close,comment,comment-intake,open}.mjs`: `NOTION_DATABASE_ID` の既定値を新 DB に。
-- `.github/workflows/notion-sync-on-{close,comment}.yml`: `env.NOTION_DATABASE_ID` を新 DB に。
+- `.github/workflows/notion-sync-on-{close,comment}.yml`: `env.NOTION_DATABASE_ID` を新 DB に **要手動更新**（後述）。
 - 設計書・`labels.md`・本ドキュメント: DB ID / データソース ID / 表示名を新 DB に統一。
 
 > [!IMPORTANT]
 > この置換をしないと、GitHub 側の進捗（Issue Close / コメント）が**旧 DB に書き込まれ**、
 > 実際に運用している新 DB に反映されません。突合キー（`GitHub Issue URL`）やスクリプトのロジックは不変です。
+
+> [!WARNING]
+> **ワークフロー YAML 2 本（`notion-sync-on-close.yml` / `notion-sync-on-comment.yml`）は、この PR の
+> トークンに GitHub の `workflow` スコープが無いため push / API 更新ができませんでした。** GitHub UI の
+> "Edit" などから、両ファイルの `NOTION_DATABASE_ID` を `f8b5709430f24ef4a476fd50bf11aed1` →
+> `3cdb35e6e67f82de8ce181dc217f10f8` に手動更新してください。スクリプトの既定値は更新済みのため、
+> ワークフローから `NOTION_DATABASE_ID` の行を削除して既定値に委ねる運用でも可。
 
 ## 認証（どう正しさを確かめたか）
 
