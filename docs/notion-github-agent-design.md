@@ -21,7 +21,7 @@
 ```mermaid
 flowchart TD
   A["Salesforce Case"] --> B["Notion サポートリクエスト DB"]
-  B --> C{"人がトリアージ<br>対応Status = Approved for Dev<br>Approval = Approved"}
+  B --> C{"人がトリアージ<br>Approval: Pending → Approved"}
   C -->|"起票条件を満たす"| D["GitHub Issue 作成"]
   C -->|"満たさない"| B
   D --> E["Notion 更新: GitHub Issue URL / GitHub Status=Open / 対応Status=In GitHub"]
@@ -48,7 +48,7 @@ flowchart TD
 
 ## 4. Triggers（トリガー設定）
 
-1. **Notion DB 変更トリガー（メイン）**: `対応Status` が **Approved for Dev** に変わったとき → 起票判定を実行。
+1. **Notion DB 変更トリガー（メイン）**: `Approval` が **Pending → Approved** に変わったとき → 起票判定を実行。
 2. **Notion DB 変更トリガー（逆方向）**: `Priority` / `Product Area` / `Engineering Owner` / `Acceptance Criteria` / `対応Status`（Rejected・Needs Info・Duplicate 等）の変更 → GitHub 側を操作。
 3. **GitHub 進捗の取り込み**: GitHub Webhook（Issue / PR / Label / Assignee / Milestone / Comment）でエージェントを起動、または一定間隔のスケジュールトリガーでポーリングして Notion に反映。
 
@@ -56,10 +56,9 @@ flowchart TD
 
 ## 5. GitHub Issue 起票条件
 
-以下を **すべて** 満たす行だけ起票する。1 つでも欠ける場合はスキップ。
+起票のトリガーは **`Approval` が Pending → Approved に変わったとき**。あわせて以下を **すべて** 満たす行だけ起票する。1 つでも欠ける場合はスキップ。
 
-- 対応Status = **Approved for Dev**
-- Approval = **Approved**
+- Approval が **Pending → Approved** に変化した（＝起票トリガー）
 - GitHub Issue URL が **空**（＝二重起票防止のキー）
 - Request Type ∈ { **Bug** / **Feature Request** / **Improvement** }
 
@@ -142,7 +141,7 @@ Ready to Publish / Published
 
 | Notion 操作 | GitHub 操作 |
 | --- | --- |
-| Status = Approved for Dev | Issue 作成 |
+| Approval = Approved（Pending→Approved）| Issue 作成 |
 | Priority 変更 | Priority ラベル更新 |
 | Product Area 変更 | Area ラベル更新 |
 | Engineering Owner 変更 | Assignee 変更 |
@@ -167,9 +166,8 @@ Ready to Publish / Published
 - 突合キー: Notion の「GitHub Issue URL」プロパティ（これで Notion 行と GitHub Issue を対応付ける）
 
 # トリガー1: GitHub Issue の起票
-次を「すべて」満たす行に対してのみ Issue を起票する:
-- 対応Status = Approved for Dev
-- Approval = Approved
+`Approval` が Pending → Approved に変わったことを起票トリガーとする。あわせて次を「すべて」満たす行に対してのみ Issue を起票する:
+- Approval が Pending → Approved に変化した（起票トリガー）
 - GitHub Issue URL が空
 - Request Type が Bug / Feature Request / Improvement のいずれか
 1つでも満たさない場合は起票しない（特に Request Type が上記以外、または GitHub Issue URL が既に埋まっている場合は必ずスキップ）。
@@ -222,7 +220,7 @@ GitHub の変化を検知したら、GitHub Issue URL で突合した Notion 行
 
 # トリガー3: Notion → GitHub 操作（逆方向）
 Notion 側の変更を検知したら GitHub を操作する:
-- Status = Approved for Dev → Issue 作成（トリガー1）
+- Approval = Approved（Pending→Approved）→ Issue 作成（トリガー1）
 - Priority 変更            → Priority ラベル更新
 - Product Area 変更        → Area ラベル更新
 - Engineering Owner 変更   → Assignee 変更
@@ -243,7 +241,7 @@ Notion 側の変更を検知したら GitHub を操作する:
 ## 11. セットアップ手順
 
 1. **Tools and access**: 対象 Notion DB（読み書き）と GitHub（`AoiNotion/Aoi_test`）を接続。
-2. **Triggers**: 上記「4. Triggers」の 3 系統を設定（メインは `対応Status = Approved for Dev`）。
+2. **Triggers**: 上記「4. Triggers」の 3 系統を設定（メインは `Approval` が Pending → Approved に変化）。
 3. **Instructions**: 上記「10. Instructions」をそのまま貼り付け。
 4. GitHub 側の受け皿（Issue テンプレート・ラベル）はこの PR で用意済み。マージ前に、必要なラベルをリポジトリに作成しておく。
 
